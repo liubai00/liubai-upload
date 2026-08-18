@@ -1,0 +1,136 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<modelVersion>4.0.0</modelVersion>
+
+<parent>
+	<groupId>ch.liubai.upload</groupId>
+	<artifactId>liubai-upload-component</artifactId>
+	<version>1.0.1</version>
+</parent>
+
+<packaging>jar</packaging>
+<artifactId>liubai-upload-spring-boot-starter</artifactId>
+<version>1.0.1</version>
+<name>liubai-upload-spring-boot-starter</name>
+<description>大文件上传</description>
+<url>https://github.com/1044586526/liubai-upload</url>
+
+<licenses>
+	<license>
+		<name>The Apache Software License, Version 2.0</name>
+		<url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+	</license>
+</licenses>
+
+<developers>
+	<developer>
+		<id>pfr</id>
+		<name>pfr</name>
+		<email>1044586526@qq.com</email>
+		<roles>
+			<role>Project Manager</role>
+			<role>Architect</role>
+		</roles>
+	</developer>
+</developers>
+
+<properties>
+	<java.version>8</java.version>
+	<spring-boot.version>2.3.12.RELEASE</spring-boot.version>
+</properties>
+
+<dependencies>
+	<dependency>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter</artifactId>
+		<version>${spring-boot.version}</version>
+	</dependency>
+	<dependency>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-configuration-processor</artifactId>
+		<version>${spring-boot.version}</version>
+		<optional>true</optional>
+	</dependency>
+	<dependency>
+		<groupId>ch.liubai.upload</groupId>
+		<artifactId>liubai-upload-core</artifactId>
+		<version>1.0.1</version>
+		<scope>compile</scope>
+	</dependency>
+</dependencies>
+
+
+<scm>
+	<connection>https://github.com/1044586526/liubai-upload.git</connection>
+	<developerConnection>scm:git:https://github.com/1044586526/liubai-upload.git</developerConnection>
+	<url>https://github.com/1044586526/liubai-upload</url>
+</scm>
+
+
+<build>
+	<plugins>
+		<!--   central发布插件    -->
+		<plugin>
+			<groupId>org.sonatype.central</groupId>
+			<artifactId>central-publishing-maven-plugin</artifactId>
+			<version>0.4.0</version>
+			<extensions>true</extensions>
+			<configuration>
+				<publishingServerId>liubai-upload</publishingServerId>
+				<tokenAuth>true</tokenAuth>
+			</configuration>
+		</plugin>
+		<!--   source源码插件 -->
+		<plugin>
+			<groupId>org.apache.maven.plugins</groupId>
+			<artifactId>maven-source-plugin</artifactId>
+			<version>2.2.1</version>
+			<executions>
+				<execution>
+					<id>attach-sources</id>
+					<goals>
+						<goal>jar-no-fork</goal>
+					</goals>
+				</execution>
+			</executions>
+		</plugin>
+		<!--   javadoc插件 -->
+		<plugin>
+			<groupId>org.apache.maven.plugins</groupId>
+			<artifactId>maven-javadoc-plugin</artifactId>
+			<version>2.9.1</version>
+			<executions>
+				<execution>
+					<id>attach-javadocs</id>
+					<goals>
+						<goal>jar</goal>
+					</goals>
+				</execution>
+			</executions>
+		</plugin>
+		<plugin>
+			<groupId>org.apache.maven.plugins</groupId>
+			<artifactId>maven-gpg-plugin</artifactId>
+			<version>1.5</version>
+			<configuration>
+				<executable>D:\company\workspae\company\ly-tools\GnuPG\bin\gpg.exe</executable>
+				<keyname>io.github.liubai-upload</keyname>
+			</configuration>
+			<executions>
+				<execution>
+					<id>sign-artifacts</id>
+					<phase>verify</phase>
+					<goals>
+						<goal>sign</goal>
+					</goals>
+				</execution>
+			</executions>
+		</plugin>
+
+	</plugins>
+</build>
+
+</project>
+
+
+
