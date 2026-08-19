@@ -1,4 +1,4 @@
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-ch.liubai.upload.FileMetadataStorageFactory
+ch.liubai.upload.LiubaiUploadAutoConfiguration
 
 

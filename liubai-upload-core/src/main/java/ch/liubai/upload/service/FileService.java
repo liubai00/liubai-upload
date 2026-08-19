@@ -32,4 +32,12 @@ public interface FileService {
      * @param totalBytes 文件总字节数
      */
     ReturnVO<String> uploadFile(String sha256, InputStream file, long startByte, long totalBytes);
+
+    /**
+     * 上传一个已知长度的文件分片。默认实现保持对旧版 FileService 实现的兼容。
+     */
+    default ReturnVO<String> uploadFile(String sha256, InputStream file, long contentLength,
+                                        long startByte, long totalBytes) {
+        return uploadFile(sha256, file, startByte, totalBytes);
+    }
 }

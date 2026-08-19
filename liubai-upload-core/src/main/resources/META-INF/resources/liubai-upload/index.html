@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Liubai Upload Demo</title>
+</head>
+<body>
+<div id="app">
+    <input type="file" @change="handleFileChange" :disabled="uploading">
+    <button @click="startUpload" :disabled="!file || uploading">
+        {{ uploading ? '上传中…' : '开始上传' }}
+    </button>
+    <div v-if="uploading || progress > 0">上传进度：{{ Math.round(progress * 100) }}%</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios@1.6.5/dist/axios.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+<script src="./js/app.js"></script>
+</body>
+</html>

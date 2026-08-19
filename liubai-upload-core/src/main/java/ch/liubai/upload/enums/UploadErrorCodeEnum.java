@@ -41,6 +41,11 @@ public enum UploadErrorCodeEnum implements ErrorType {
      * sha256校验失败
      */
     SHA256_CHECK_FAIL("sha256校验失败", 40001),
+
+    /**
+     * 上传分片的起始位置与服务端记录不一致
+     */
+    UPLOAD_OFFSET_MISMATCH("上传偏移量不一致", 40002),
     ;
 
     /**

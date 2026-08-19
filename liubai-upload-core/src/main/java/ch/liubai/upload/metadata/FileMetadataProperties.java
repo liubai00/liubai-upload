@@ -1,5 +1,7 @@
 package ch.liubai.upload.metadata;
 
+import java.nio.file.Paths;
+
 /**
  * 文件元数据存储
  *
@@ -17,17 +19,17 @@ public class FileMetadataProperties {
     /**
      * 元数据文件目录
      */
-    private String metadataDir;
+    private String metadataDir = defaultUserDirectory("metadata");
 
     /**
      * 临时文件目录
      */
-    private String tempDir;
+    private String tempDir = Paths.get(System.getProperty("java.io.tmpdir"), "liubai-upload", "temp").toString();
 
     /**
      * 上传文件目录
      */
-    private String uploadDir;
+    private String uploadDir = defaultUserDirectory("files");
 
     public FileMetadataProperties() {
     }
@@ -69,5 +71,9 @@ public class FileMetadataProperties {
 
     public void setUploadDir(String uploadDir) {
         this.uploadDir = uploadDir;
+    }
+
+    private static String defaultUserDirectory(String child) {
+        return Paths.get(System.getProperty("user.home"), ".liubai-upload", child).toString();
     }
 }

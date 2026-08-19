@@ -1,4 +1,4 @@
-CREATE TABLE file_metadata
+CREATE TABLE IF NOT EXISTS file_metadata
 (
     id          INT AUTO_INCREMENT PRIMARY KEY comment '主键',
     file_name   VARCHAR(255) NOT NULL comment '文件名',

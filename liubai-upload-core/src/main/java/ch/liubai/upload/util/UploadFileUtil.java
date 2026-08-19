@@ -5,9 +5,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.*;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
@@ -20,7 +22,7 @@ import java.security.NoSuchAlgorithmException;
  */
 public class UploadFileUtil {
 
-    private static final int BUFFER_SIZE = 4096;
+    private static final int BUFFER_SIZE = 64 * 1024;
 
     private static final Logger log = LoggerFactory.getLogger(UploadFileUtil.class);
 
@@ -33,10 +35,9 @@ public class UploadFileUtil {
      * @throws IOException IO异常
      */
     public static void writeToFile(MultipartFile file, long startByte, String filePath) throws IOException {
-        RandomAccessFile raf = new RandomAccessFile(filePath, "rw");
-        raf.seek(startByte);
-        raf.write(file.getBytes());
-        raf.close();
+        try (InputStream inputStream = file.getInputStream()) {
+            writeToFile(inputStream, startByte, Paths.get(filePath), Long.MAX_VALUE);
+        }
     }
 
     /**
@@ -47,18 +48,56 @@ public class UploadFileUtil {
      * @param filePath    文件路径
      */
     public static void writeToFile(InputStream inputStream, long startByte, String filePath) {
-        try (RandomAccessFile raf = new RandomAccessFile(filePath, "rw");
-             FileOutputStream fos = new FileOutputStream(raf.getFD());
-             BufferedOutputStream bos = new BufferedOutputStream(fos)) {
-            raf.seek(startByte);
-            byte[] bytes = new byte[1024];
-            int len;
-            while ((len = inputStream.read(bytes)) != -1) {
-                bos.write(bytes, 0, len);
-                bos.flush();
-            }
+        try {
+            writeToFile(inputStream, startByte, Paths.get(filePath), Long.MAX_VALUE);
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Streams one upload chunk into a temporary file. A failed write is rolled back to
+     * {@code startByte}, so callers never observe a partially committed chunk.
+     *
+     * @return number of bytes written
+     */
+    public static long writeToFile(InputStream inputStream, long startByte, Path filePath, long maxBytes)
+            throws IOException {
+        if (inputStream == null) {
+            throw new IllegalArgumentException("上传内容不能为空");
+        }
+        if (startByte < 0 || maxBytes < 0) {
+            throw new IllegalArgumentException("上传偏移量或分片大小非法");
+        }
+
+        try (RandomAccessFile randomAccessFile = new RandomAccessFile(filePath.toFile(), "rw")) {
+            if (startByte == 0) {
+                randomAccessFile.setLength(0);
+            }
+            randomAccessFile.seek(startByte);
+            byte[] buffer = new byte[BUFFER_SIZE];
+            long written = 0;
+            try {
+                int bytesRead;
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    if (bytesRead == 0) {
+                        continue;
+                    }
+                    if (written > maxBytes - bytesRead) {
+                        throw new IllegalArgumentException("上传分片超过文件声明大小");
+                    }
+                    randomAccessFile.write(buffer, 0, bytesRead);
+                    written += bytesRead;
+                }
+                return written;
+            } catch (IOException | RuntimeException e) {
+                try {
+                    randomAccessFile.setLength(startByte);
+                } catch (IOException rollbackError) {
+                    e.addSuppressed(rollbackError);
+                }
+                throw e;
+            }
         }
     }
 
@@ -70,7 +109,7 @@ public class UploadFileUtil {
      * @return 文件
      */
     public static File getFile(String fileName, String dirUrl) {
-        return new File(dirUrl + "/" + fileName);
+        return new File(dirUrl, fileName);
     }
 
     /**
@@ -96,18 +135,16 @@ public class UploadFileUtil {
      * @throws IOException IO异常
      */
     public static void moveFileToUploadDir(File tempFile, String fileName, String uploadDir) throws IOException {
-        // 判断上传目录是否存在，不存在则创建
-        File uploadDirFile = new File(uploadDir);
-        if (!uploadDirFile.exists()) {
-            boolean mkdirsResult = uploadDirFile.mkdirs();
-            log.info("上传目录不存在，创建上传目录结果为 {}", mkdirsResult);
-        }
-        File uploadFile = new File(uploadDir + "/" + fileName);
-        Files.move(tempFile.toPath(), uploadFile.toPath());
+        moveFile(tempFile.toPath(), Paths.get(uploadDir).resolve(fileName));
+    }
 
-        // 判断文件是否移动成功
-        if (!uploadFile.exists() || tempFile.exists()) {
-            throw new RuntimeException("文件移动失败");
+    public static void moveFile(Path source, Path target) throws IOException {
+        Files.createDirectories(target.toAbsolutePath().normalize().getParent());
+        try {
+            Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException e) {
+            log.debug("文件系统不支持原子移动，回退到普通移动：{} -> {}", source, target);
+            Files.move(source, target);
         }
     }
 
@@ -120,42 +157,26 @@ public class UploadFileUtil {
      * @throws NoSuchAlgorithmException 没有这个算法异常
      */
     public static String calculateSHA256(File file) throws IOException, NoSuchAlgorithmException {
+        return calculateSHA256(file.toPath());
+    }
+
+    public static String calculateSHA256(Path file) throws IOException, NoSuchAlgorithmException {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
-
-        try (FileInputStream fis = new FileInputStream(file); FileChannel channel = fis.getChannel()) {
-            ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
-            long fileSize = channel.size();
-            long position = 0;
-
-            while (position < fileSize) {
-                buffer.clear();
-                int bytesRead = channel.read(buffer);
-                if (bytesRead == -1) {
-                    break;
+        try (InputStream inputStream = new BufferedInputStream(Files.newInputStream(file))) {
+            byte[] buffer = new byte[BUFFER_SIZE];
+            int bytesRead;
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                if (bytesRead > 0) {
+                    digest.update(buffer, 0, bytesRead);
                 }
-                buffer.flip();
-                digest.update(buffer);
-                position += bytesRead;
             }
         }
 
-        byte[] bytes = digest.digest();
-
-        StringBuilder sb = new StringBuilder();
-
-        for (byte aByte : bytes) {
-            sb.append(String.format("%02x", aByte));
+        StringBuilder result = new StringBuilder(64);
+        for (byte value : digest.digest()) {
+            result.append(String.format("%02x", value & 0xff));
         }
-
-        return sb.toString();
-    }
-
-    public static void main(String[] args) {
-        try {
-            System.out.println(calculateSHA256(new File("D:\\data\\temp\\d4c616ca3af8ee66861e9ac774b68d8ec1c13cb588aa3ddbe7f4bb4ec376991f_181320585.tmp")));
-        } catch (IOException | NoSuchAlgorithmException e) {
-            e.printStackTrace();
-        }
+        return result.toString();
     }
 
 }

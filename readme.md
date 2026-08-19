@@ -5,66 +5,21 @@
 [![Java Version](https://img.shields.io/badge/Java-8+-green.svg)](https://www.oracle.com/java/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-2.3.12-brightgreen.svg)](https://spring.io/projects/spring-boot)
 
-Liubai Upload 是一个高性能、易集成的大文件断点续传组件，专为 Spring Boot 应用设计。支持文件完整性校验、多种存储方式，提供开箱即用的上传解决方案。
+Liubai Upload 是面向 Spring Boot 2.3 的顺序分片、断点续传组件。它使用 SHA-256 标识文件，支持本地 JSON 或 MySQL 元数据存储，并提供可直接访问的浏览器上传示例。
 
-## ✨ 核心特性
+## 核心能力
 
-- 🚀 **断点续传**：支持网络中断后从断点继续上传，避免重复传输
-- 🔒 **文件完整性校验**：基于 SHA256 算法确保文件传输完整性
-- 💾 **多种存储方式**：支持本地文件存储和 MySQL 数据库存储
-- 🔧 **零配置启动**：Spring Boot Starter 自动配置，开箱即用
-- 📊 **智能去重**：相同文件自动识别，避免重复存储
-- 🎯 **高性能**：分块上传，支持大文件高效传输
-- 🛡️ **安全可靠**：完整的错误处理和数据一致性保障
+- 真实分片续传：未完成的临时文件会保留，客户端可以从服务端确认的偏移继续上传。
+- 完整性校验：完成上传前同时校验文件长度和完整文件 SHA-256。
+- 严格偏移控制：除显式从 `0` 重新上传外，`startByte` 必须等于服务端已保存长度。
+- 安全路径：SHA-256 使用值对象统一校验，文件路径经过规范化和目录边界检查。
+- 可替换存储：`FileMetadataStorage` 使用策略模式，本地和 MySQL 实现由工厂统一选择，也可以注册自定义实现。
+- 零配置启动：未配置路径时使用安全默认目录，Spring Boot Starter 自动注册所需组件。
+- 并发保护：同一个文件在单个 JVM 内串行处理，防止并发分片相互覆盖。
 
-## 🏗️ 项目架构
-
-### 模块结构
-```
-liubai-upload-component/
-├── liubai-upload-core/                           # 核心功能模块
-│   └── src/main/java/ch/liubai/upload/
-│       ├── controller/                           # REST API 控制器
-│       │   └── FileController.java               # 文件上传控制器
-│       ├── service/                              # 业务逻辑层
-│       │   ├── FileService.java                  # 文件服务接口
-│       │   └── impl/FileServiceImpl.java         # 文件服务实现
-│       ├── entity/                               # 实体类
-│       │   ├── FileMetadata.java                 # 文件元数据实体
-│       │   ├── FileUploadPreprocessResponse.java # 预处理响应实体
-│       │   └── ReturnVO.java                     # 统一返回对象
-│       ├── enums/                                # 枚举类
-│       │   ├── ErrorType.java                    # 错误类型枚举
-│       │   └── UploadErrorCodeEnum.java          # 上传错误码枚举
-│       ├── metadata/                             # 元数据存储
-│       │   ├── FileMetadataStorage.java          # 存储接口
-│       │   ├── FileMetadataProperties.java       # 配置属性
-│       │   ├── LocalFileMetadataStorage.java     # 本地文件存储实现
-│       │   └── DatabaseFileMetadataStorage.java  # 数据库存储实现
-│       └── util/                                 # 工具类
-│           └── UploadFileUtil.java               # 文件上传工具类
-├── liubai-upload-spring-boot-starter/            # Spring Boot 自动配置
-│   └── src/main/java/ch/liubai/upload/
-│       ├── FileMetadataStorageFactory.java       # 存储工厂自动配置
-│       └── FileMetadataWrapper.java              # 配置属性包装类
-└── resources/                                    # 资源文件
-    ├── html/index.html                           # 前端示例页面
-    ├── js/app.js                                 # 前端JavaScript实现
-    └── sql/file_metadata.sql                     # 数据库表结构
-```
-
-### 核心组件
-
-- **FileController**：提供文件预处理和上传的 REST API
-- **FileService**：核心业务逻辑，处理文件上传和完整性校验
-- **FileMetadataStorage**：文件元数据存储抽象，支持本地和数据库存储
-- **UploadFileUtil**：文件操作工具类，提供 SHA256 计算、文件移动等功能
-
-## 🚀 快速开始
+## 快速开始
 
 ### 1. 添加依赖
-
-在您的 `pom.xml` 中添加依赖：
 
 ```xml
 <dependency>
@@ -74,198 +29,100 @@ liubai-upload-component/
 </dependency>
 ```
 
-### 2. 配置参数
+该版本面向 Java 8+ 和 Spring Boot 2.3.12。
 
-在 `application.yml` 中添加配置：
+### 2. 可选配置
+
+完全不配置也可以启动。默认值如下：
+
+| 配置项 | 默认值 | 说明 |
+| --- | --- | --- |
+| `file.metadata.storage-type` | 自动检测 | MySQL/MariaDB DataSource 可用时使用数据库，否则使用本地 JSON |
+| `file.metadata.temp-dir` | `${java.io.tmpdir}/liubai-upload/temp` | 未完成分片目录 |
+| `file.metadata.upload-dir` | `${user.home}/.liubai-upload/files` | 完整文件目录 |
+| `file.metadata.metadata-dir` | `${user.home}/.liubai-upload/metadata` | 本地 JSON 元数据目录 |
+
+显式使用本地存储的示例：
 
 ```yaml
 file:
   metadata:
-    # 存储类型：local(本地) 或 mysql(数据库)
-    # 不配置时自动检测：有 DataSource 则使用 mysql，否则使用 local
-    storageType: mysql
-    
-    # 临时文件存储路径（必填）
-    tempDir: /tmp/liubai-upload/temp
-    
-    # 上传完成文件存储路径（必填）
-    uploadDir: /tmp/liubai-upload/files
-    
-    # 元数据存储路径（local 模式使用）
-    # 不配置时默认使用 ~/.file_metadata
-    metadataDir: /tmp/liubai-upload/metadata
+    storage-type: local
+    temp-dir: /tmp/liubai-upload/temp
+    upload-dir: /tmp/liubai-upload/files
+    metadata-dir: /tmp/liubai-upload/metadata
+
+# 示例页面每片为 1 MiB；为 multipart 开销留出余量。
+spring:
+  servlet:
+    multipart:
+      max-file-size: 2MB
+      max-request-size: 3MB
 ```
+
+使用 MySQL 时配置 `DataSource`，并将 `storage-type` 设为 `mysql`。显式选择 MySQL 但没有 `DataSource` 时，应用会快速失败，不会悄悄切换存储方式。
 
 ### 3. 启动应用
 
-启动 Spring Boot 应用，组件会自动注册以下接口：
+Starter 会注册：
 
-- `GET /file/preprocess` - 文件预处理接口
-- `POST /file/upload` - 文件上传接口
+- `GET /file/preprocess`：查询已完成文件或当前断点。
+- `POST /file/upload`：上传一个顺序分片。
+- `GET /liubai-upload/index.html`：仓库内置的 Vue 示例页面（启用 Spring Boot 静态资源处理时）。
 
-## 📖 API 文档
+## 上传协议
 
-### 文件预处理接口
+### 预处理
 
-**请求**
 ```http
-GET /file/preprocess?sha256={文件SHA256}&totalBytes={文件大小}
+GET /file/preprocess?sha256={64位十六进制SHA256}&totalBytes={文件总字节数}
 ```
 
-**参数**
-- `sha256`：文件的 SHA256 哈希值（必填）
-- `totalBytes`：文件总字节数（必填）
+成功响应示例：
 
-**响应**
 ```json
 {
   "code": 20000,
   "message": "success",
   "data": {
-    "uploadedBytes": 1048576,    // 已上传字节数
-    "currentSha256": "abc123..."  // 当前已上传部分的 SHA256
+    "uploadedBytes": 1048576,
+    "currentSha256": "当前已上传部分的SHA256"
   }
 }
 ```
 
-### 文件上传接口
+客户端只有在本地文件前 `uploadedBytes` 字节的 SHA-256 与 `currentSha256` 一致时，才应从该断点继续；否则应以 `startByte=0` 重新上传。
 
-**请求**
+### 上传一个分片
+
 ```http
 POST /file/upload
 Content-Type: multipart/form-data
 
-sha256: 文件SHA256值
-file: 文件数据
-startByte: 起始字节位置
-totalBytes: 文件总大小
+sha256: 完整文件的SHA256
+file: 当前分片
+startByte: 当前分片在完整文件中的起始偏移
+totalBytes: 完整文件总字节数
 ```
 
-**响应**
-```json
-{
-  "code": 20000,
-  "message": "文件上传成功",
-  "data": "success"
-}
-```
+约束：
 
-## 💻 前端集成示例
+- `sha256` 必须是 64 位十六进制字符串。
+- `startByte`、`totalBytes` 不能为负数，分片不能超过文件剩余长度。
+- `startByte=0` 表示显式重新上传；否则它必须等于服务端已提交字节数。
+- 中间分片成功后临时文件会保留；达到 `totalBytes` 后才执行完整 SHA-256 校验、移动文件并保存元数据。
 
-### HTML 页面
-```html
-<!DOCTYPE html>
-<html>
-<head>
-    <title>文件上传</title>
-    <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.5/dist/axios.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.0.0/crypto-js.min.js"></script>
-</head>
-<body>
-    <div id="app">
-        <input type="file" @change="handleFileChange" />
-        <button @click="startUpload" :disabled="!file">开始上传</button>
-        <div v-if="uploading">
-            上传进度: {{ Math.round(progress * 100) }}%
-        </div>
-    </div>
-</body>
-</html>
-```
+内置页面使用 1 MiB 顺序分片，代码位于 `liubai-upload-core/src/main/resources/META-INF/resources/liubai-upload/js/app.js`。页面和接口都使用相对路径，因此部署在不同端口或 Servlet Context Path 下时不需要修改地址；示例资源也不会占用宿主应用的根首页。
 
-### JavaScript 实现
-```javascript
-new Vue({
-    el: '#app',
-    data: {
-        file: null,
-        uploading: false,
-        progress: 0
-    },
-    methods: {
-        handleFileChange(event) {
-            this.file = event.target.files[0];
-        },
-        
-        async startUpload() {
-            if (!this.file) return;
-            
-            this.uploading = true;
-            try {
-                // 1. 计算文件 SHA256
-                const sha256 = await this.calculateSHA256(this.file);
-                
-                // 2. 预处理请求
-                const preprocessRes = await axios.get('/file/preprocess', {
-                    params: {
-                        sha256: sha256,
-                        totalBytes: this.file.size
-                    }
-                });
-                
-                const { uploadedBytes, currentSha256 } = preprocessRes.data.data;
-                
-                // 3. 检查是否需要上传
-                if (uploadedBytes === this.file.size && currentSha256 === sha256) {
-                    alert('文件已存在');
-                    return;
-                }
-                
-                // 4. 断点续传
-                const startByte = uploadedBytes || 0;
-                const fileSlice = this.file.slice(startByte);
-                
-                const formData = new FormData();
-                formData.append('file', fileSlice);
-                formData.append('sha256', sha256);
-                formData.append('startByte', startByte);
-                formData.append('totalBytes', this.file.size);
-                
-                // 5. 上传文件
-                await axios.post('/file/upload', formData, {
-                    headers: { 'Content-Type': 'multipart/form-data' },
-                    onUploadProgress: (progressEvent) => {
-                        this.progress = (startByte + progressEvent.loaded) / this.file.size;
-                    }
-                });
-                
-                alert('上传成功');
-            } catch (error) {
-                console.error('上传失败:', error);
-                alert('上传失败');
-            } finally {
-                this.uploading = false;
-            }
-        },
-        
-        calculateSHA256(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                const sha256 = CryptoJS.algo.SHA256.create();
-                
-                reader.onload = (e) => {
-                    const wordArray = CryptoJS.lib.WordArray.create(e.target.result);
-                    sha256.update(wordArray);
-                    resolve(sha256.finalize().toString());
-                };
-                
-                reader.onerror = reject;
-                reader.readAsArrayBuffer(file);
-            });
-        }
-    }
-});
-```
+## 元数据存储
 
-## ⚙️ 高级配置
+### MySQL
 
-### 数据库模式
-
-使用 MySQL 存储时，组件会自动创建 `file_metadata` 表：
+MySQL 模式启动时会幂等创建表，也可以手动执行：
 
 ```sql
-CREATE TABLE file_metadata (
+CREATE TABLE IF NOT EXISTS file_metadata
+(
     id          INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键',
     file_name   VARCHAR(255) NOT NULL COMMENT '文件名',
     sha256      VARCHAR(64)  NOT NULL COMMENT '文件SHA256',
@@ -276,67 +133,71 @@ CREATE TABLE file_metadata (
 ) COMMENT '文件元数据表';
 ```
 
-### 自定义存储实现
+数据库实现从 `DataSource` 按操作获取连接并及时关闭，不持有长期 JDBC 连接。
 
-实现 `FileMetadataStorage` 接口来自定义存储方式：
+### 自定义策略
+
+注册自己的 `FileMetadataStorage` Bean 即可覆盖默认策略，自动配置会主动让位：
 
 ```java
 @Component
 public class CustomFileMetadataStorage implements FileMetadataStorage {
-    
+
     @Override
     public void addFileMetadata(FileMetadata metadata) throws Exception {
-        // 自定义存储逻辑
+        // 保存元数据
     }
-    
+
     @Override
-    public FileMetadata getFileMetadata(String sha256) throws Exception {
-        // 自定义查询逻辑
+    public FileMetadata loadFileMetadata(String sha256) throws Exception {
+        // 查询元数据
         return null;
     }
 }
 ```
 
-## 🔧 技术栈
+## 设计结构
 
-- **Java 8+**：核心开发语言
-- **Spring Boot 2.3.12**：应用框架
-- **Maven**：项目构建工具
-- **MySQL**：可选的元数据存储
-- **Vue.js + Axios**：前端示例实现
-- **CryptoJS**：前端 SHA256 计算
+```text
+liubai-upload-core
+├── controller       REST 参数校验与流生命周期
+├── domain           SHA-256/文件大小值对象
+├── metadata         元数据策略及配置
+├── service          上传用例
+├── service/support  安全路径解析与分段锁
+├── util             流式写入、SHA-256 和原子移动
+└── META-INF/resources/liubai-upload  命名空间内的上传示例
 
-## 📝 更新日志
+liubai-upload-spring-boot-starter
+├── LiubaiUploadAutoConfiguration
+├── FileMetadataStorageFactory
+└── DatabaseSchemaInitializer
+```
 
-### v1.0.1 (2024-01-22)
-- ✨ 新增 Spring Boot Starter 自动配置
-- 🐛 修复文件完整性校验问题
-- 📈 优化大文件上传性能
-- 🔧 改进错误处理机制
+这里主要使用了策略模式（元数据存储）、工厂模式（存储选择）和值对象（上传标识与约束）。文件完成与元数据保存之间还包含补偿逻辑：如果元数据保存失败，完整文件会尽量移回临时目录，便于重试。
 
-## 🤝 贡献指南
+## 构建与测试
 
-欢迎提交 Issue 和 Pull Request！
+```bash
+mvn test
+```
 
-1. Fork 本仓库
-2. 创建特性分支：`git checkout -b feature/amazing-feature`
-3. 提交更改：`git commit -m 'Add amazing feature'`
-4. 推送分支：`git push origin feature/amazing-feature`
-5. 提交 Pull Request
+发布相关的源码包、Javadoc 和 GPG 签名只在 `release` Profile 下执行：
 
-## 📄 许可证
+```bash
+mvn -Prelease deploy
+```
 
-本项目基于 [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0) 许可证开源。
+## 部署说明
 
-## 👨‍💻 作者
+当前并发锁是 JVM 内锁，适合单实例或同一文件被路由到固定实例的部署。多实例同时接收同一文件分片时，应在应用层增加分布式锁，或把临时文件和上传状态迁移到具备并发控制的共享存储。
 
-- **pfr** - *项目维护者* - [刘白](mailto:1044586526@qq.com)
+## 许可证
 
-## 🔗 相关链接
+本项目基于 [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0) 开源。
 
+## 作者与链接
+
+- 维护者：[刘白](mailto:1044586526@qq.com)
 - [GitHub 仓库](https://github.com/1044586526/liubai-upload)
 - [问题反馈](https://github.com/1044586526/liubai-upload/issues)
-
----
-
-⭐ 如果这个项目对您有帮助，请给我们一个 Star！

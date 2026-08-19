@@ -14,7 +14,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 public class ReturnVO<T> {
 
     /**
-     * 请求响应code，0为成功 其他为失败
+     * 请求响应 code，20000 为成功，其他为失败
      */
     private int code = UploadErrorCodeEnum.SUCCESS.getCode();
 
@@ -95,6 +95,20 @@ public class ReturnVO<T> {
      */
     public static <T> ReturnVO<T> fail(ErrorType errorType, T data) {
         return new ReturnVO<>(errorType, data);
+    }
+
+    /**
+     * 创建带有明确错误消息的失败结果。
+     */
+    public static <T> ReturnVO<T> failWithMessage(ErrorType errorType, String message) {
+        return new ReturnVO<>(errorType.getCode(), message, null);
+    }
+
+    /**
+     * 创建带有明确错误消息和数据的失败结果。
+     */
+    public static <T> ReturnVO<T> failWithMessage(ErrorType errorType, String message, T data) {
+        return new ReturnVO<>(errorType.getCode(), message, data);
     }
 
     /**
